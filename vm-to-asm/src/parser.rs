@@ -18,7 +18,6 @@ impl Parser {
             .collect();
         let line = 0;
 
-        println!("{:?}", source);
         Parser { source, line }
     }
 

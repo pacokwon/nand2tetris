@@ -4,16 +4,27 @@ use crate::command::CommandType;
 
 pub struct CodeWriter {
     file: Option<(File, String)>,
+    eq_counter: u16,
+    gt_counter: u16,
+    lt_counter: u16,
 }
 
 impl CodeWriter {
     pub fn new() -> Self {
-        CodeWriter { file: None }
+        CodeWriter {
+            file: None,
+            eq_counter: 0,
+            gt_counter: 0,
+            lt_counter: 0,
+        }
     }
 
     pub fn set_filename(&mut self, name: &str) {
         let file = File::create(name).expect("set_filename: file not found");
         self.file = Some((file, name.to_string()));
+        self.eq_counter = 0;
+        self.gt_counter = 0;
+        self.lt_counter = 0;
     }
 
     pub fn close(&mut self) {
@@ -65,6 +76,22 @@ impl CodeWriter {
             }
             "eq" | "gt" | "lt" => {
                 let branch = command;
+                let (id, jump_instruction) = match command {
+                    "eq" => {
+                        self.eq_counter += 1;
+                        (self.eq_counter, "JEQ")
+                    }
+                    "gt" => {
+                        self.gt_counter += 1;
+                        (self.gt_counter, "JGT")
+                    }
+                    "lt" => {
+                        self.lt_counter += 1;
+                        (self.lt_counter, "JLT")
+                    }
+                    _ => todo!(),
+                };
+
                 write!(
                     file,
                     "\
@@ -73,14 +100,14 @@ impl CodeWriter {
                         D=M\n\
                         A=A-1\n\
                         D=M-D\n\
-                        @__{filename}_{branch}_true\n\
-                        D;JEQ\n\
+                        @__{filename}_{branch}_{id}_true\n\
+                        D;{jump_instruction}\n\
                         D=0\n\
-                        @__{filename}_{branch}_end\n\
+                        @__{filename}_{branch}_{id}_end\n\
                         0;JMP\n\
-                        (__{filename}_{branch}_true)\n\
+                        (__{filename}_{branch}_{id}_true)\n\
                         D=-1\n\
-                        (__{filename}_{branch}_end)\n\
+                        (__{filename}_{branch}_{id}_end)\n\
                         @SP\n\
                         A=M-1\n\
                         M=D\n\
@@ -137,7 +164,7 @@ impl CodeWriter {
                                 @{seg_symbol}\n\
                                 D=M\n\
                                 @{index}\n\
-                                A=A+M\n\
+                                A=A+D\n\
                                 D=M\n\
                                 {push_code}"
                         )
@@ -145,7 +172,7 @@ impl CodeWriter {
                     }
                     "pointer" | "temp" => {
                         let seg_symbol = match segment {
-                        "pointer " => ["THIS", "THAT"][index as usize],
+                        "pointer" => ["THIS", "THAT"][index as usize],
                         "temp" => ["R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12"][index as usize],
                         _ => unreachable!("Any segment other than \"pointer\" or \"temp\" should't reach here."),
                     };
@@ -177,73 +204,68 @@ impl CodeWriter {
                     _ => todo!(),
                 }
             }
-            Pop => {
-                match segment {
-                    "constant" => {
-                        panic!("the \"constant\" segment is virtual. It cannot be written to.")
-                    }
-                    "argument" | "local" | "this" | "that" => {
-                        let seg_symbol = Self::get_segment_symbol(segment);
+            Pop => match segment {
+                "constant" => {
+                    panic!("the \"constant\" segment is virtual. It cannot be written to.")
+                }
+                "argument" | "local" | "this" | "that" => {
+                    let seg_symbol = Self::get_segment_symbol(segment);
 
-                        write!(
-                            file,
-                            "\
+                    write!(
+                        file,
+                        "\
                                 @{seg_symbol}\n\
                                 D=M\n\
                                 @{index}\n\
                                 D=D+A\n\
-                                // store the address in a R13\n\
                                 @R13\n\
                                 M=D\n\
-                                // Put the top of the stack in D, and decrement stack\n\
                                 @SP\n\
                                 AM=M-1\n\
                                 D=M\n\
-                                // Write D to the address referenced by R13\n\
                                 @R13\n\
                                 A=M\n\
                                 M=D\n\
                             "
-                        )
-                        .unwrap();
-                    }
-                    "pointer" | "temp" => {
-                        let seg_symbol = match segment {
+                    )
+                    .unwrap();
+                }
+                "pointer" | "temp" => {
+                    let seg_symbol = match segment {
                             "pointer" => ["THIS", "THAT"][index as usize],
                             "temp" => ["R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12"][index as usize],
                             _ => unreachable!("Any segment other than \"pointer\" or \"temp\" should't reach here. Encountered {}", segment),
                         };
 
-                        write!(
-                            file,
-                            "\
+                    write!(
+                        file,
+                        "\
                                 @SP\n\
                                 AM=M-1\n\
                                 D=M\n\
                                 @{seg_symbol}\n\
                                 M=D\n\
                             "
-                        )
-                        .unwrap();
-                    }
-                    "static" => {
-                        let static_symbol = Self::get_static_symbol(filename, index);
+                    )
+                    .unwrap();
+                }
+                "static" => {
+                    let static_symbol = Self::get_static_symbol(filename, index);
 
-                        write!(
-                            file,
-                            "\
+                    write!(
+                        file,
+                        "\
                                 @SP\n\
                                 AM=M-1\n\
                                 D=M\n\
                                 @{static_symbol}\n\
                                 M=D\n\
                             "
-                        )
-                        .unwrap();
-                    }
-                    _ => todo!(),
+                    )
+                    .unwrap();
                 }
-            }
+                _ => todo!(),
+            },
             Label => todo!(),
             Goto => todo!(),
             If => todo!(),
