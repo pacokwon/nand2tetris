@@ -17,6 +17,7 @@ fn main() {
 
     code_writer.set_filename(&output);
 
+    code_writer.write_init();
     while parser.has_more_commands() {
         let command_type = parser.command_type();
         match command_type {
@@ -29,7 +30,31 @@ fn main() {
                 let index = parser.arg2();
                 code_writer.write_pushpop(command_type, segment, index);
             }
-            _ => todo!(),
+            CommandType::Label => {
+                let label = parser.arg1();
+                code_writer.write_label(label);
+            }
+            CommandType::Goto => {
+                let label = parser.arg1();
+                code_writer.write_goto(label);
+            }
+            CommandType::If => {
+                let label = parser.arg1();
+                code_writer.write_if(label);
+            }
+            CommandType::Function => {
+                let function_name = parser.arg1();
+                let locals_count = parser.arg2();
+                code_writer.write_function(function_name, locals_count);
+            }
+            CommandType::Call => {
+                let function_name = parser.arg1();
+                let arg_count = parser.arg2();
+                code_writer.write_call(function_name, arg_count);
+            }
+            CommandType::Return => {
+                code_writer.write_return();
+            }
         }
 
         parser.advance();

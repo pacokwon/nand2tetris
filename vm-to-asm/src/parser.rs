@@ -38,6 +38,12 @@ impl Parser {
             }
             "push" => CommandType::Push,
             "pop" => CommandType::Pop,
+            "label" => CommandType::Label,
+            "goto" => CommandType::Goto,
+            "if-goto" => CommandType::If,
+            "function" => CommandType::Function,
+            "call" => CommandType::Call,
+            "return" => CommandType::Return,
             c => panic!("Invalid command {} at line {}", c, self.line + 1),
         }
     }
@@ -46,18 +52,20 @@ impl Parser {
         let line = &self.source[self.line];
         match line[0].as_str() {
             "add" | "sub" | "neg" | "eq" | "gt" | "lt" | "and" | "or" | "not" => line[0].as_str(),
-            "pop" | "push" => line[1].as_str(),
-            _ => todo!(),
+            "pop" | "push" | "label" | "goto" | "if-goto" | "function" | "call" => line[1].as_str(),
+            "return" => panic!("Invalid call to arg1 for return operation"),
+            c => panic!("Invalid command {} at line {}", c, self.line + 1),
         }
     }
 
     pub fn arg2(&self) -> u16 {
         let line = &self.source[self.line];
         match line[0].as_str() {
-            "add" | "sub" | "neg" | "eq" | "gt" | "lt" | "and" | "or" | "not" => {
-                panic!("Invalid call to arg2 for arithmetic operation {}", line[0])
+            "add" | "sub" | "neg" | "eq" | "gt" | "lt" | "and" | "or" | "not" | "label"
+            | "goto" | "if-goto" => {
+                panic!("Invalid call to arg2 for operation {}", line[0])
             }
-            "pop" | "push" => line[2]
+            "pop" | "push" | "function" | "call" => line[2]
                 .parse()
                 .expect("Expected integer for second argument."),
             _ => todo!(),
@@ -66,28 +74,5 @@ impl Parser {
 
     pub fn should_include_line(line: &Vec<String>) -> bool {
         !(line.is_empty() || line[0].starts_with("//"))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    pub fn test_parser() {
-        let input = "
-                add
-                sub
-
-                add
-
-                @2
-                D=A
-                @3
-                D=D+A
-                @0
-                M=D
-            ";
-        let mut parser = Parser::new(input);
     }
 }
