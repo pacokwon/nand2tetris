@@ -14,9 +14,11 @@ impl Parser {
                     .map(str::to_owned)
                     .collect::<Vec<String>>()
             })
-            .filter(|v| !v.is_empty())
+            .filter(Self::should_include_line)
             .collect();
         let line = 0;
+
+        println!("{:?}", source);
         Parser { source, line }
     }
 
@@ -44,12 +46,8 @@ impl Parser {
     pub fn arg1(&self) -> &str {
         let line = &self.source[self.line];
         match line[0].as_str() {
-            "add" | "sub" | "neg" | "eq" | "gt" | "lt" | "and" | "or" | "not" => {
-                line[0].as_str()
-            }
-            "pop" | "push" => {
-                line[1].as_str()
-            },
+            "add" | "sub" | "neg" | "eq" | "gt" | "lt" | "and" | "or" | "not" => line[0].as_str(),
+            "pop" | "push" => line[1].as_str(),
             _ => todo!(),
         }
     }
@@ -60,11 +58,15 @@ impl Parser {
             "add" | "sub" | "neg" | "eq" | "gt" | "lt" | "and" | "or" | "not" => {
                 panic!("Invalid call to arg2 for arithmetic operation {}", line[0])
             }
-            "pop" | "push" => {
-                line[2].parse().expect("Expected integer for second argument.")
-            },
+            "pop" | "push" => line[2]
+                .parse()
+                .expect("Expected integer for second argument."),
             _ => todo!(),
         }
+    }
+
+    pub fn should_include_line(line: &Vec<String>) -> bool {
+        !(line.is_empty() || line[0].starts_with("//"))
     }
 }
 

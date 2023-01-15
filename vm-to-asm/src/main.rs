@@ -1,7 +1,6 @@
 use std::fs;
 
-
-use vm_to_asm::{parser::Parser, command::CommandType, code_writer::CodeWriter};
+use vm_to_asm::{code_writer::CodeWriter, command::CommandType, parser::Parser};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -22,8 +21,8 @@ fn main() {
             CommandType::Arithmetic => {
                 let command = parser.arg1();
                 code_writer.write_arithemtic(command);
-            },
-            CommandType::Push => {
+            }
+            CommandType::Push | CommandType::Pop => {
                 let segment = parser.arg1();
                 let index = parser.arg2();
                 code_writer.write_pushpop(command_type, segment, index);
