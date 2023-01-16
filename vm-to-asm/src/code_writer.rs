@@ -3,8 +3,8 @@ use std::{fs::File, io::Write};
 use crate::command::CommandType;
 
 pub struct CodeWriter {
-    file: Option<(File, String)>,
-    current_function_name: Option<String>,
+    output_file: Option<File>,
+    module: Option<String>,
     eq_counter: u16,
     gt_counter: u16,
     lt_counter: u16,
@@ -13,51 +13,50 @@ pub struct CodeWriter {
 impl CodeWriter {
     pub fn new() -> Self {
         CodeWriter {
-            file: None,
-            current_function_name: None,
+            output_file: None,
+            module: None,
             eq_counter: 0,
             gt_counter: 0,
             lt_counter: 0,
         }
     }
 
-    pub fn set_filename(&mut self, name: &str) {
+    pub fn set_output_filename(&mut self, name: &str) {
         let file = File::create(name).expect("set_filename: file not found");
-        self.file = Some((file, name.to_string()));
+        self.output_file = Some(file);
         self.eq_counter = 0;
         self.gt_counter = 0;
         self.lt_counter = 0;
     }
 
+    pub fn set_module_name(&mut self, name: &str) {
+        self.module = Some(name.to_string());
+    }
+
     pub fn close(&mut self) {
-        self.file = None;
+        self.output_file = None;
     }
 
     pub fn write_init(&mut self) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
 
         write!(
-            file,
+            out_file,
             "\
                 @256\n\
                 D=A\n\
                 @SP\n\
                 M=D\n\
-                @SimpleFunction.test\n\
-                0;JMP\n\
+                @Sys.init\n\
+                0;JMP\n\n\
             "
         )
         .unwrap();
     }
 
     pub fn write_arithemtic(&mut self, command: &str) {
-        let (file, filename) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let filename = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
 
         match command {
             "add" | "sub" | "and" | "or" => {
@@ -69,7 +68,7 @@ impl CodeWriter {
                     _ => unreachable!("Only binary operations should reach here."),
                 };
                 write!(
-                    file,
+                    out_file,
                     "\
                         @SP\n\
                         AM=M-1\n\
@@ -87,7 +86,7 @@ impl CodeWriter {
                     _ => unreachable!("Only unary operations should reach here."),
                 };
                 write!(
-                    file,
+                    out_file,
                     "\
                         @SP\n\
                         A=M-1\n\
@@ -115,7 +114,7 @@ impl CodeWriter {
                 };
 
                 write!(
-                    file,
+                    out_file,
                     "\
                         @SP\n\
                         AM=M-1\n\
@@ -144,10 +143,8 @@ impl CodeWriter {
     pub fn write_pushpop(&mut self, command: CommandType, segment: &str, index: u16) {
         use CommandType::*;
 
-        let (file, filename) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let filename = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
 
         /*
          * Predefined Symbols:                     |  Segment Types:
@@ -167,7 +164,7 @@ impl CodeWriter {
                     "constant" => {
                         let push_code = Self::get_push_code();
                         write!(
-                            file,
+                            out_file,
                             "\
                                 @{index}\n\
                                 D=A\n\
@@ -180,7 +177,7 @@ impl CodeWriter {
                         let push_code = Self::get_push_code();
 
                         write!(
-                            file,
+                            out_file,
                             "\
                                 @{seg_symbol}\n\
                                 D=M\n\
@@ -201,7 +198,7 @@ impl CodeWriter {
                         let push_code = Self::get_push_code();
 
                         write!(
-                            file,
+                            out_file,
                             "\
                                 @{seg_symbol}\n\
                                 D=M\n\
@@ -214,7 +211,7 @@ impl CodeWriter {
                         let push_code = Self::get_push_code();
 
                         write!(
-                            file,
+                            out_file,
                             "\
                                 @{static_symbol}\n\
                                 D=M\n\
@@ -233,7 +230,7 @@ impl CodeWriter {
                     let seg_symbol = Self::get_segment_symbol(segment);
 
                     write!(
-                        file,
+                        out_file,
                         "\
                                 @{seg_symbol}\n\
                                 D=M\n\
@@ -259,7 +256,7 @@ impl CodeWriter {
                         };
 
                     write!(
-                        file,
+                        out_file,
                         "\
                                 @SP\n\
                                 AM=M-1\n\
@@ -274,7 +271,7 @@ impl CodeWriter {
                     let static_symbol = Self::get_static_symbol(filename, index);
 
                     write!(
-                        file,
+                        out_file,
                         "\
                                 @SP\n\
                                 AM=M-1\n\
@@ -292,14 +289,8 @@ impl CodeWriter {
     }
 
     pub fn write_label(&mut self, label: &str) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
-
-        let func_name = self.current_function_name
-            .as_ref()
-            .expect("Error! VM is currently not inside a function. The label command requires that it is in a function context.");
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let func_name = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
 
         if !Self::is_valid_label(label) {
             panic!("The label {label} is not valid.");
@@ -307,18 +298,12 @@ impl CodeWriter {
 
         // labels are scoped inside a function, therefore we decorate given label with the current function name
         let function_local_label = Self::get_function_label(&func_name, label);
-        writeln!(file, "({function_local_label})").unwrap();
+        writeln!(out_file, "({function_local_label})").unwrap();
     }
 
     pub fn write_goto(&mut self, label: &str) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
-
-        let func_name = self.current_function_name
-            .as_ref()
-            .expect("Error! VM is currently not inside a function. The label command requires that it is in a function context.");
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let func_name = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
 
         if !Self::is_valid_label(label) {
             panic!("The label {label} is not valid.");
@@ -326,7 +311,7 @@ impl CodeWriter {
 
         let function_local_label = Self::get_function_label(&func_name, label);
         write!(
-            file,
+            out_file,
             "\
                 @{function_local_label}\n\
                 0;JMP\n\
@@ -336,14 +321,8 @@ impl CodeWriter {
     }
 
     pub fn write_if(&mut self, label: &str) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
-
-        let func_name = self.current_function_name
-            .as_ref()
-            .expect("Error! VM is currently not inside a function. The label command requires that it is in a function context.");
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let func_name = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
 
         if !Self::is_valid_label(label) {
             panic!("The label {label} is not valid.");
@@ -351,7 +330,7 @@ impl CodeWriter {
 
         let function_local_label = Self::get_function_label(&func_name, label);
         write!(
-            file,
+            out_file,
             "\
                 @SP\n\
                 AM=M-1\n\
@@ -364,23 +343,20 @@ impl CodeWriter {
     }
 
     pub fn write_call(&mut self, function_name: &str, args_count: u16) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
 
         let return_address_label = Self::get_return_symbol(function_name);
 
-        Self::push_symbol(file, &return_address_label);
-        Self::push_symbol(file, "LCL");
-        Self::push_symbol(file, "ARG");
-        Self::push_symbol(file, "THIS");
-        Self::push_symbol(file, "THAT");
+        Self::push_symbol(out_file, &return_address_label);
+        Self::push_symbol(out_file, "LCL");
+        Self::push_symbol(out_file, "ARG");
+        Self::push_symbol(out_file, "THIS");
+        Self::push_symbol(out_file, "THAT");
 
         // ARG = SP-n-5,
         // LCL = SP
         write!(
-            file,
+            out_file,
             "\
                 @SP\n\
                 D=M\n\
@@ -400,17 +376,14 @@ impl CodeWriter {
     }
 
     pub fn write_function(&mut self, function_name: &str, locals_count: u16) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
 
-        writeln!(file, "({function_name})").unwrap();
+        writeln!(out_file, "({function_name})").unwrap();
 
         // push 0's `locals_count` times
         if locals_count >= 1 {
             write!(
-                file,
+                out_file,
                 "\
                     @SP\n\
                     A=M\n\
@@ -422,7 +395,7 @@ impl CodeWriter {
             // push 0 n times, incrementing the A register
             for _ in 1..locals_count {
                 write!(
-                    file,
+                    out_file,
                     "\
                         M=0\n\
                         A=A+1\n\
@@ -435,7 +408,7 @@ impl CodeWriter {
             // increment the stack pointer,
             // then update @SP
             write!(
-                file,
+                out_file,
                 "\
                     M=0\n\
                     D=A+1\n\
@@ -445,11 +418,6 @@ impl CodeWriter {
             )
             .unwrap();
         }
-
-        // We now enter the function body.
-        // set the function name, so that other places where the current function name is needed
-        // can utilize it.
-        self.current_function_name = Some(function_name.to_string());
     }
 
     // FRAME = LCL
@@ -465,13 +433,10 @@ impl CodeWriter {
     // LCL = *(FRAME - 4)
     // goto RET
     pub fn write_return(&mut self) {
-        let (file, _) = match self.file {
-            Some(ref mut f) => f,
-            None => panic!("Target file not set. Call set_filename() before writing commands."),
-        };
+        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
 
         write!(
-            file,
+            out_file,
             "\
                 @LCL\n\
                 D=M\n\
@@ -525,17 +490,13 @@ impl CodeWriter {
             "
         )
         .unwrap();
-
-        // we now exit the function body.
-        // unset the function name.
-        self.current_function_name = None;
     }
 
-    fn push_symbol(file: &mut File, symbol: &str) {
+    fn push_symbol(out_file: &mut File, symbol: &str) {
         let push_code = Self::get_push_code();
 
         write!(
-            file,
+            out_file,
             "\
                 @{symbol}\n\
                 D=M\n\
