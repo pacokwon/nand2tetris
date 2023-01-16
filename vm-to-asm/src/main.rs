@@ -26,7 +26,6 @@ fn main() {
             .filter(|path| path.ends_with(".vm"))
             .collect::<Vec<String>>()
     };
-    println!("{:?}", filenames);
 
     let mut code_writer = CodeWriter::new();
     let output = if args.len() < 3 {
@@ -44,7 +43,6 @@ fn main() {
 
         // `filepath` contains a full path. extract the filename only.
         let filename = Path::new(filepath).file_name().unwrap().to_str().unwrap();
-        println!("{}", filename);
 
         code_writer.set_module_name(filename);
         while parser.has_more_commands() {

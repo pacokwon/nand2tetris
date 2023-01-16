@@ -8,6 +8,7 @@ pub struct CodeWriter {
     eq_counter: u16,
     gt_counter: u16,
     lt_counter: u16,
+    return_counter: u16,
 }
 
 impl CodeWriter {
@@ -18,6 +19,7 @@ impl CodeWriter {
             eq_counter: 0,
             gt_counter: 0,
             lt_counter: 0,
+            return_counter: 0,
         }
     }
 
@@ -38,7 +40,10 @@ impl CodeWriter {
     }
 
     pub fn write_init(&mut self) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
 
         write!(
             out_file,
@@ -47,16 +52,63 @@ impl CodeWriter {
                 D=A\n\
                 @SP\n\
                 M=D\n\
-                @Sys.init\n\
-                0;JMP\n\n\
+            "
+        )
+        .unwrap();
+
+        let function_name = "Sys.init";
+        let args_count = 0;
+
+        self.return_counter += 1;
+        let return_address_label = Self::get_return_symbol(function_name, self.return_counter);
+
+        write!(
+            out_file,
+            "\
+                @{return_address_label}\n\
+                D=A\n\
+                {}",
+            Self::get_push_code()
+        )
+        .unwrap();
+
+        Self::push_symbol(out_file, "LCL");
+        Self::push_symbol(out_file, "ARG");
+        Self::push_symbol(out_file, "THIS");
+        Self::push_symbol(out_file, "THAT");
+
+        // ARG = SP-n-5,
+        // LCL = SP
+        write!(
+            out_file,
+            "\
+                @SP\n\
+                D=M\n\
+                @LCL\n\
+                M=D\n\
+                @5\n\
+                D=D-A\n\
+                @{args_count}\n\
+                D=D-A\n\
+                @ARG\n\
+                M=D\n\
+                @{function_name}\n\
+                0;JMP\n\
+                ({return_address_label})\n\
             "
         )
         .unwrap();
     }
 
     pub fn write_arithemtic(&mut self, command: &str) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
-        let filename = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
+        let filename = self
+            .module
+            .as_ref()
+            .expect("Target module not set. Call set_module_name() before writing commands.");
 
         match command {
             "add" | "sub" | "and" | "or" => {
@@ -143,8 +195,14 @@ impl CodeWriter {
     pub fn write_pushpop(&mut self, command: CommandType, segment: &str, index: u16) {
         use CommandType::*;
 
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
-        let filename = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
+        let filename = self
+            .module
+            .as_ref()
+            .expect("Target module not set. Call set_module_name() before writing commands.");
 
         /*
          * Predefined Symbols:                     |  Segment Types:
@@ -289,8 +347,14 @@ impl CodeWriter {
     }
 
     pub fn write_label(&mut self, label: &str) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
-        let func_name = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
+        let func_name = self
+            .module
+            .as_ref()
+            .expect("Target module not set. Call set_module_name() before writing commands.");
 
         if !Self::is_valid_label(label) {
             panic!("The label {label} is not valid.");
@@ -302,8 +366,14 @@ impl CodeWriter {
     }
 
     pub fn write_goto(&mut self, label: &str) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
-        let func_name = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
+        let func_name = self
+            .module
+            .as_ref()
+            .expect("Target module not set. Call set_module_name() before writing commands.");
 
         if !Self::is_valid_label(label) {
             panic!("The label {label} is not valid.");
@@ -321,8 +391,14 @@ impl CodeWriter {
     }
 
     pub fn write_if(&mut self, label: &str) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
-        let func_name = self.module.as_ref().expect("Target module not set. Call set_module_name() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
+        let func_name = self
+            .module
+            .as_ref()
+            .expect("Target module not set. Call set_module_name() before writing commands.");
 
         if !Self::is_valid_label(label) {
             panic!("The label {label} is not valid.");
@@ -343,11 +419,24 @@ impl CodeWriter {
     }
 
     pub fn write_call(&mut self, function_name: &str, args_count: u16) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
 
-        let return_address_label = Self::get_return_symbol(function_name);
+        self.return_counter += 1;
+        let return_address_label = Self::get_return_symbol(function_name, self.return_counter);
 
-        Self::push_symbol(out_file, &return_address_label);
+        write!(
+            out_file,
+            "\
+                @{return_address_label}\n\
+                D=A\n\
+                {}",
+            Self::get_push_code()
+        )
+        .unwrap();
+
         Self::push_symbol(out_file, "LCL");
         Self::push_symbol(out_file, "ARG");
         Self::push_symbol(out_file, "THIS");
@@ -370,13 +459,17 @@ impl CodeWriter {
                 M=D\n\
                 @{function_name}\n\
                 0;JMP\n\
+                ({return_address_label})\n\
             "
         )
         .unwrap();
     }
 
     pub fn write_function(&mut self, function_name: &str, locals_count: u16) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
 
         writeln!(out_file, "({function_name})").unwrap();
 
@@ -433,15 +526,19 @@ impl CodeWriter {
     // LCL = *(FRAME - 4)
     // goto RET
     pub fn write_return(&mut self) {
-        let out_file = self.output_file.as_mut().expect("Target file not set. Call set_filename() before writing commands.");
+        let out_file = self
+            .output_file
+            .as_mut()
+            .expect("Target file not set. Call set_filename() before writing commands.");
 
         write!(
             out_file,
             "\
+                // ----------- return -------------\n\
                 @LCL\n\
                 D=M\n\
                 @R13\n\
-                MD=D\n\
+                M=D\n\
 \n\
                 @5\n\
                 A=D-A\n\
@@ -486,7 +583,9 @@ impl CodeWriter {
                 M=D\n\
 \n\
                 @R14\n\
+                A=M\n\
                 0;JMP\n\
+                // ----------- return finish -------------\n\
             "
         )
         .unwrap();
@@ -517,13 +616,13 @@ impl CodeWriter {
 
     fn get_static_symbol(filename: &str, index: u16) -> String {
         let basename = filename
-            .strip_suffix(".asm")
+            .strip_suffix(".vm")
             .expect("Filenames should end with .vm");
         format!("{basename}.{index}")
     }
 
-    fn get_return_symbol(function_name: &str) -> String {
-        format!("{function_name}__return")
+    fn get_return_symbol(function_name: &str, counter: u16) -> String {
+        format!("{function_name}__return_{}", counter)
     }
 
     fn get_function_label(function_name: &str, label: &str) -> String {
