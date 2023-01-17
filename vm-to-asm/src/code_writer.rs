@@ -5,9 +5,7 @@ use crate::command::CommandType;
 pub struct CodeWriter {
     output_file: Option<File>,
     module: Option<String>,
-    eq_counter: u16,
-    gt_counter: u16,
-    lt_counter: u16,
+    jump_counter: u16,
     return_counter: u16,
 }
 
@@ -16,9 +14,7 @@ impl CodeWriter {
         CodeWriter {
             output_file: None,
             module: None,
-            eq_counter: 0,
-            gt_counter: 0,
-            lt_counter: 0,
+            jump_counter: 0,
             return_counter: 0,
         }
     }
@@ -26,9 +22,7 @@ impl CodeWriter {
     pub fn set_output_filename(&mut self, name: &str) {
         let file = File::create(name).expect("set_filename: file not found");
         self.output_file = Some(file);
-        self.eq_counter = 0;
-        self.gt_counter = 0;
-        self.lt_counter = 0;
+        self.jump_counter = 0;
     }
 
     pub fn set_module_name(&mut self, name: &str) {
@@ -149,19 +143,12 @@ impl CodeWriter {
             }
             "eq" | "gt" | "lt" => {
                 let branch = command;
-                let (id, jump_instruction) = match command {
-                    "eq" => {
-                        self.eq_counter += 1;
-                        (self.eq_counter, "JEQ")
-                    }
-                    "gt" => {
-                        self.gt_counter += 1;
-                        (self.gt_counter, "JGT")
-                    }
-                    "lt" => {
-                        self.lt_counter += 1;
-                        (self.lt_counter, "JLT")
-                    }
+                let id = self.jump_counter;
+                self.jump_counter += 1;
+                let jump_instruction = match command {
+                    "eq" => "JEQ",
+                    "gt" => "JGT",
+                    "lt" => "JLT",
                     _ => unreachable!("Only eq, gt, lt commands should be reachable."),
                 };
 
@@ -469,7 +456,7 @@ impl CodeWriter {
         let out_file = self
             .output_file
             .as_mut()
-            .expect("Target file not set. Call set_filename() before writing commands.");
+            .expect("Target file not set. Call set_module_name() before writing commands.");
 
         writeln!(out_file, "({function_name})").unwrap();
 
