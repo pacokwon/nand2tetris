@@ -1,4 +1,7 @@
-use crate::ast::{Expr, ExprTerm, Statement, SubroutineCall};
+use crate::ast::{
+    Class, ClassVarDec, Expr, ExprTerm, Statement, SubroutineBody, SubroutineCall, SubroutineDec,
+    SubroutineKind, VarDec, VariableScope, VariableType,
+};
 use crate::lexer::Lexer;
 use crate::token::{KeywordType, TokenType};
 
@@ -14,8 +17,7 @@ impl Parser {
         Parser { lexer }
     }
 
-    pub fn parse(&mut self) {
-        // let mut parsed = Vec::new();
+    pub fn parse(&mut self) -> Class {
         self.parse_class()
     }
 
@@ -23,24 +25,190 @@ impl Parser {
         self.lexer.advance_token().token_type
     }
 
-    fn parse_class(&mut self) {
-        todo!()
-    }
-    fn parse_class_var_dec(&mut self) {
-        todo!()
-    }
-    fn parse_subroutine_dec(&mut self) {
-        todo!()
-    }
-    fn parse_parameter_list(&mut self) {
-        todo!()
-    }
-    fn parse_subroutine_body(&mut self) {
-        todo!()
+    fn parse_class(&mut self) -> Class {
+        let tt = self.advance();
+        let TokenType::Keyword(KeywordType::Class) = tt else {
+            panic!("Expected 'class' while parsing class. Encountered {:?}", tt);
+        };
+
+        let name = self.parse_identifier();
+
+        self.consume_symbol('{');
+
+        let variables = self.parse_class_var_decs();
+        let subroutines = self.parse_subroutine_decs();
+
+        self.consume_symbol('}');
+
+        Class {
+            name,
+            variables,
+            subroutines,
+        }
     }
 
-    fn parse_var_dec(&mut self) {
-        todo!()
+    fn parse_class_var_decs(&mut self) -> Vec<ClassVarDec> {
+        let mut class_var_decs = Vec::new();
+
+        loop {
+            let tt = self.lexer.get_current_token_type();
+            let scope = match tt {
+                TokenType::Keyword(KeywordType::Static) => VariableScope::Static,
+                TokenType::Keyword(KeywordType::Field) => VariableScope::Field,
+                _ => break,
+            };
+            self.advance();
+            let typ = self.parse_type();
+
+            let var = self.parse_identifier();
+            let mut vars = vec![var];
+
+            while let TokenType::Symbol(',') = self.lexer.get_current_token_type() {
+                self.advance();
+
+                let var = self.parse_identifier();
+                vars.push(var);
+            }
+
+            self.consume_symbol(';');
+
+            let dec = ClassVarDec { scope, typ, vars };
+            class_var_decs.push(dec);
+        }
+
+        class_var_decs
+    }
+
+    fn parse_subroutine_decs(&mut self) -> Vec<SubroutineDec> {
+        let mut subroutines = Vec::new();
+
+        loop {
+            let tt = self.lexer.get_current_token_type();
+            let kind = match tt {
+                TokenType::Keyword(KeywordType::Constructor) => SubroutineKind::Constructor,
+                TokenType::Keyword(KeywordType::Function) => SubroutineKind::Function,
+                TokenType::Keyword(KeywordType::Method) => SubroutineKind::Method,
+                _ => break,
+            };
+            self.advance();
+
+            let tt = self.advance();
+            let return_type = match tt {
+                TokenType::Keyword(KeywordType::IntType) => VariableType::Int,
+                TokenType::Keyword(KeywordType::BoolType) => VariableType::Boolean,
+                TokenType::Keyword(KeywordType::CharType) => VariableType::Char,
+                TokenType::Keyword(KeywordType::Void) => VariableType::Void,
+                TokenType::Identifier(ref n) => VariableType::Other(n.clone()),
+                _ => panic!("Expected return type. Encountered {:?}", tt),
+            };
+
+            let name = self.parse_identifier();
+
+            self.consume_symbol('(');
+            let parameters = self.parse_parameter_list();
+
+            let body = self.parse_subroutine_body();
+
+            let subroutine = SubroutineDec {
+                kind,
+                return_type,
+                name,
+                parameters,
+                body,
+            };
+            subroutines.push(subroutine);
+        }
+
+        subroutines
+    }
+
+    fn parse_parameter_list(&mut self) -> Vec<(VariableType, String)> {
+        if let TokenType::Symbol(')') = self.lexer.get_current_token_type() {
+            self.advance();
+            return Vec::new();
+        }
+
+        let typ = self.parse_type();
+        let name = self.parse_identifier();
+
+        let mut parameters = vec![(typ, name)];
+
+        while let TokenType::Symbol(',') = self.lexer.get_current_token_type() {
+            self.advance();
+            let typ = self.parse_type();
+            let name = self.parse_identifier();
+            parameters.push((typ, name));
+        }
+
+        self.consume_symbol(')');
+        parameters
+    }
+
+    fn parse_subroutine_body(&mut self) -> SubroutineBody {
+        self.consume_symbol('{');
+
+        let locals = self.parse_var_decs();
+        let statements = self.parse_statements();
+
+        self.consume_symbol('}');
+
+        SubroutineBody { locals, statements }
+    }
+
+    fn parse_var_decs(&mut self) -> Vec<VarDec> {
+        let mut decs = vec![];
+        loop {
+            let TokenType::Keyword(KeywordType::Var) = self.lexer.get_current_token_type() else {
+                break
+            };
+            self.advance();
+
+            let typ = self.parse_type();
+
+            let var = self.parse_identifier();
+            let mut vars = vec![var];
+            while let TokenType::Symbol(',') = self.lexer.get_current_token_type() {
+                self.advance();
+                let var = self.parse_identifier();
+                vars.push(var);
+            }
+            self.consume_symbol(';');
+
+            let var_dec = VarDec { typ, vars };
+            decs.push(var_dec);
+        }
+        decs
+    }
+
+    fn parse_type(&mut self) -> VariableType {
+        let tt = self.advance();
+        match tt {
+            TokenType::Keyword(KeywordType::IntType) => VariableType::Int,
+            TokenType::Keyword(KeywordType::BoolType) => VariableType::Boolean,
+            TokenType::Keyword(KeywordType::CharType) => VariableType::Char,
+            TokenType::Identifier(ref n) => VariableType::Other(n.clone()),
+            _ => panic!("Expected type. Encountered {:?}", tt),
+        }
+    }
+
+    fn parse_identifier(&mut self) -> String {
+        let tt = self.advance();
+        match tt {
+            TokenType::Identifier(ref n) => n.clone(),
+            _ => panic!("Expected identifier. Encountered {:?}", tt),
+        }
+    }
+
+    fn consume_symbol(&mut self, expected: char) {
+        let tt = self.advance();
+        match tt {
+            TokenType::Symbol(c) => {
+                if c != expected {
+                    panic!("Expected '{expected}'. Encountered {c}")
+                }
+            }
+            _ => panic!("Expected '{expected}'. Encountered {:?}", tt),
+        }
     }
 
     fn parse_statements(&mut self) -> Vec<Statement> {
@@ -51,23 +219,23 @@ impl Parser {
                 TokenType::Keyword(KeywordType::Let) => {
                     self.advance();
                     self.parse_let_statement()
-                },
+                }
                 TokenType::Keyword(KeywordType::If) => {
                     self.advance();
                     self.parse_if_statement()
-                },
+                }
                 TokenType::Keyword(KeywordType::While) => {
                     self.advance();
                     self.parse_while_statement()
-                },
+                }
                 TokenType::Keyword(KeywordType::Do) => {
                     self.advance();
                     self.parse_do_statement()
-                },
+                }
                 TokenType::Keyword(KeywordType::Return) => {
                     self.advance();
                     self.parse_return_statement()
-                },
+                }
                 _ => break,
             };
             statements.push(stmt);
@@ -77,28 +245,16 @@ impl Parser {
     }
 
     fn parse_while_statement(&mut self) -> Statement {
-        let TokenType::Symbol('(') = self.lexer.get_current_token_type() else {
-            panic!("Expected '(' after 'while'. Encountered {:?}", self.lexer.get_current_token_type())
-        };
-        self.advance();
+        self.consume_symbol('(');
 
         let condition = self.parse_expression();
 
-        let TokenType::Symbol(')') = self.lexer.get_current_token_type() else {
-            panic!("Expected ')' after while condition. Encountered {:?}", self.lexer.get_current_token_type())
-        };
-        self.advance();
-
-        let TokenType::Symbol('{') = self.lexer.get_current_token_type() else {
-            panic!("Expected '{{' before while body. Encountered {:?}", self.lexer.get_current_token_type())
-        };
-        self.advance();
+        self.consume_symbol(')');
+        self.consume_symbol('{');
 
         let statements = self.parse_statements();
 
-        let TokenType::Symbol('}') = self.lexer.get_current_token_type() else {
-            panic!("Expected '}}' after while body. Encountered {:?}", self.lexer.get_current_token_type())
-        };
+        self.consume_symbol('}');
         self.advance();
 
         Statement::While {
@@ -108,48 +264,30 @@ impl Parser {
     }
 
     fn parse_if_statement(&mut self) -> Statement {
-        let TokenType::Symbol('(') = self.advance() else {
-            panic!("Expected '(' after 'if'.")
-        };
+        self.consume_symbol('(');
 
         let condition = self.parse_expression();
 
-        let tt = self.advance();
-        let TokenType::Symbol(')') = tt else {
-            panic!("Expected ')' after conditional. Encountered {:?}", tt);
-        };
-        let tt = self.advance();
-        let TokenType::Symbol('{') = tt else {
-            panic!("Expected '{{' before if conditional. Encountered {:?}", tt);
-        };
+        self.consume_symbol(')');
+        self.consume_symbol('{');
 
         let if_true = self.parse_statements();
 
-        let tt = self.advance();
-        let TokenType::Symbol('}') = tt else {
-            panic!("Expected '}}' after if_true body. Encountered {:?}", tt);
-        };
+        self.consume_symbol('}');
 
-        let if_false = if let TokenType::Keyword(KeywordType::Else) =
-            self.lexer.get_current_token_type()
-        {
-            self.advance();
-            let tt = self.advance();
-            let TokenType::Symbol('{') = tt else {
-                panic!("Expected '{{' after 'else'. Encountered {:?}", tt);
+        let if_false =
+            if let TokenType::Keyword(KeywordType::Else) = self.lexer.get_current_token_type() {
+                self.advance();
+                self.consume_symbol('{');
+
+                let if_false = self.parse_statements();
+
+                self.consume_symbol('}');
+
+                Some(if_false)
+            } else {
+                None
             };
-
-            let if_false = self.parse_statements();
-
-            let tt = self.advance();
-            let TokenType::Symbol('}') = tt else {
-                panic!("Expected '}}' after if_false body. Encountered {:?}", tt);
-            };
-
-            Some(if_false)
-        } else {
-            None
-        };
 
         Statement::If {
             condition,
@@ -266,21 +404,15 @@ impl Parser {
     fn parse_term(&mut self) -> ExprTerm {
         let tt = self.advance();
         match tt {
-            TokenType::Integer(num) => {
-                ExprTerm::Integer(num)
-            }
-            TokenType::String(ref s) => {
-                ExprTerm::Str(s.clone())
-            }
-            TokenType::Keyword(typ) => {
-                match typ {
-                    KeywordType::True => ExprTerm::True,
-                    KeywordType::False => ExprTerm::False,
-                    KeywordType::Null => ExprTerm::Null,
-                    KeywordType::This => ExprTerm::This,
-                    t => panic!("Unexpected keyword literal {:?} encountered.", t),
-                }
-            }
+            TokenType::Integer(num) => ExprTerm::Integer(num),
+            TokenType::String(ref s) => ExprTerm::Str(s.clone()),
+            TokenType::Keyword(typ) => match typ {
+                KeywordType::True => ExprTerm::True,
+                KeywordType::False => ExprTerm::False,
+                KeywordType::Null => ExprTerm::Null,
+                KeywordType::This => ExprTerm::This,
+                t => panic!("Unexpected keyword literal {:?} encountered.", t),
+            },
             TokenType::Identifier(ref name) => {
                 let var_name = name.clone();
                 match self.lexer.get_current_token_type() {
@@ -365,11 +497,11 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::Parser;
     use crate::ast;
     use crate::ast::ExprTerm;
     use crate::ast::Statement;
     use crate::ast::SubroutineCall;
+    use crate::parser::Parser;
 
     #[test]
     fn test_term_int() {
@@ -722,5 +854,51 @@ mod tests {
         let None = value else {
             panic!("Must be None.");
         };
+    }
+
+    #[test]
+    fn test_class() {
+        // let input = "class Foobar {
+        //     method void f() {
+        //         var Bar b;
+        //     }
+        // }";
+
+        let input = "class List {
+            field int data;
+            field List next;
+
+            constructor List new(int car, List cdr) {
+                let data = car;
+                let next = cdr;
+                return this;
+            }
+
+            method int getData() { return data; }
+            method int getNext() { return next; }
+
+            method void print() {
+                var List current;
+                let current = this;
+                while (~(current = null)) {
+                    do Output.printInt(current.getData());
+                    do Output.printChar(32);
+                    let current = current.getNext();
+                }
+                return;
+            }
+
+            method void dispose() {
+                if (~(next = null)) {
+                    do next.dispose();
+                }
+                do Memory.deAlloc(this);
+                return;
+            }
+        }";
+        let mut parser = Parser::new(input);
+        let class = parser.parse_class();
+
+        println!("{:?}", class);
     }
 }

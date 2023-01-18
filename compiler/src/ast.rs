@@ -25,13 +25,13 @@ pub enum SubroutineKind {
 pub struct ClassVarDec {
     pub scope: VariableScope,
     pub typ: VariableType,
-    pub names: Vec<String>,
+    pub vars: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct VarDec {
     pub typ: VariableType,
-    pub name: Vec<String>,
+    pub vars: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -44,6 +44,7 @@ pub struct SubroutineBody {
 pub struct SubroutineDec {
     pub kind: SubroutineKind,
     pub return_type: VariableType,
+    pub name: String,
     pub parameters: Vec<(VariableType, String)>,
     pub body: SubroutineBody,
 }
