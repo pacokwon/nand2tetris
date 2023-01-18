@@ -8,7 +8,8 @@ pub struct Lexer {
     start: usize,
     position: usize,
     line: usize,
-    current_token: Token,
+    pub current_token: Token,
+    pub next_token: Token,
 }
 
 impl Lexer {
@@ -22,12 +23,18 @@ impl Lexer {
             span: Span::default(),
         };
 
+        let next_token = Token {
+            token_type: TokenType::Error,
+            span: Span::default(),
+        };
+
         Lexer {
             source,
             start,
             position,
             line,
             current_token,
+            next_token,
         }
     }
 
@@ -60,23 +67,35 @@ impl Lexer {
         }
 
         let mut tokens = Vec::new();
+        self.token();
+
         loop {
-            match self.token() {
+            self.token();
+            match &self.current_token {
                 t @ Token {
                     token_type: TokenType::Eof,
                     ..
                 } => {
-                    tokens.push(t);
+                    tokens.push(t.clone());
                     break tokens;
                 }
                 token => {
-                    tokens.push(token);
+                    tokens.push(token.clone());
                 }
             }
         }
     }
 
-    pub fn token(&mut self) -> Token {
+    pub fn token(&mut self) {
+        if let TokenType::Eof = self.next_token.token_type {
+            self.current_token = Token {
+                token_type: TokenType::Eof,
+                span: Span::default(),
+            };
+
+            return;
+        }
+
         let token = loop {
             self.start = self.position;
             let c = self.advance();
@@ -203,8 +222,8 @@ impl Lexer {
                 }
             }
         };
-        self.current_token = token;
-        self.current_token.clone()
+        std::mem::swap(&mut self.current_token, &mut self.next_token);
+        self.next_token = token;
     }
 
     fn advance(&mut self) -> char {
