@@ -42,11 +42,16 @@ impl Lexer {
         self.position < self.source.len()
     }
 
-    pub fn get_current_token_type(&self) -> TokenType {
-        todo!()
+    pub fn get_current_token_type(&self) -> &TokenType {
+        &self.current_token.token_type
+    }
+
+    pub fn get_next_token_type(&self) -> &TokenType {
+        &self.next_token.token_type
     }
 
     pub fn next_token(&self) {
+
         todo!()
     }
 
@@ -67,10 +72,10 @@ impl Lexer {
         }
 
         let mut tokens = Vec::new();
-        self.token();
+        self.advance_token();
 
         loop {
-            self.token();
+            self.advance_token();
             match &self.current_token {
                 t @ Token {
                     token_type: TokenType::Eof,
@@ -86,14 +91,14 @@ impl Lexer {
         }
     }
 
-    pub fn token(&mut self) {
+    pub fn advance_token(&mut self) -> Token {
         if let TokenType::Eof = self.next_token.token_type {
-            self.current_token = Token {
+            let old_token = std::mem::replace(&mut self.current_token, Token {
                 token_type: TokenType::Eof,
                 span: Span::default(),
-            };
+            });
 
-            return;
+            return old_token;
         }
 
         let token = loop {
@@ -223,7 +228,8 @@ impl Lexer {
             }
         };
         std::mem::swap(&mut self.current_token, &mut self.next_token);
-        self.next_token = token;
+        let old_token = std::mem::replace(&mut self.next_token, token);
+        old_token
     }
 
     fn advance(&mut self) -> char {
@@ -245,7 +251,7 @@ impl Lexer {
         let position = self.position;
         while {
             let peek = self.peek();
-            peek.is_ascii_alphanumeric() || peek == '_' || peek == '.' || peek == '$'
+            peek.is_ascii_alphanumeric() || peek == '_'
         } {
             self.position += 1;
         }
@@ -655,6 +661,22 @@ mod tests {
             String(std::string::String::from("hello world")),
             Integer(30),
             String(std::string::String::from("this is a string literal")),
+            Eof,
+        ];
+        assert_eq!(tokens, expected);
+    }
+
+    #[test]
+    fn test_dot_identifier() {
+        use TokenType::*;
+
+        let input = "foo.bar";
+        let tokens = lex_and_get_token_types(&input);
+        println!("{:?}", tokens);
+        let expected = vec![
+            Identifier(std::string::String::from("foo")),
+            Symbol('.'),
+            Identifier(std::string::String::from("bar")),
             Eof,
         ];
         assert_eq!(tokens, expected);

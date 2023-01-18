@@ -6,6 +6,15 @@ pub struct Token {
     pub span: Span,
 }
 
+impl Default for Token {
+    fn default() -> Self {
+        Token {
+            token_type: TokenType::Error,
+            span: Span::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
     Symbol(char), // a single character representing the symbol
@@ -17,7 +26,7 @@ pub enum TokenType {
     Error,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeywordType {
     Class,
     Method,
