@@ -255,7 +255,6 @@ impl Parser {
         let statements = self.parse_statements();
 
         self.consume_symbol('}');
-        self.advance();
 
         Statement::While {
             condition,
@@ -501,6 +500,9 @@ mod tests {
     use crate::ast::ExprTerm;
     use crate::ast::Statement;
     use crate::ast::SubroutineCall;
+    use crate::ast::SubroutineKind;
+    use crate::ast::VariableScope;
+    use crate::ast::VariableType;
     use crate::parser::Parser;
 
     #[test]
@@ -857,48 +859,134 @@ mod tests {
     }
 
     #[test]
-    fn test_class() {
-        // let input = "class Foobar {
-        //     method void f() {
-        //         var Bar b;
-        //     }
-        // }";
-
-        let input = "class List {
-            field int data;
+    fn test_class_var_decs() {
+        let input = "
+            field int data, foo;
             field List next;
+            static char foobar;
+        ";
+        let mut parser = Parser::new(input);
+        let decs = parser.parse_class_var_decs();
 
+        assert_eq!(decs.len(), 3);
+
+        assert_eq!(decs[0].scope, VariableScope::Field);
+        assert_eq!(decs[0].typ, VariableType::Int);
+        assert_eq!(decs[0].vars.len(), 2);
+
+        assert_eq!(decs[1].scope, VariableScope::Field);
+        assert_eq!(decs[1].typ, VariableType::Other(String::from("List")));
+        assert_eq!(decs[1].vars.len(), 1);
+
+        assert_eq!(decs[2].scope, VariableScope::Static);
+        assert_eq!(decs[2].typ, VariableType::Char);
+        assert_eq!(decs[2].vars.len(), 1);
+    }
+
+    #[test]
+    fn test_subroutine_decs() {
+        let input = "
             constructor List new(int car, List cdr) {
                 let data = car;
                 let next = cdr;
                 return this;
             }
 
-            method int getData() { return data; }
+            method int getData() {
+                var int x, y, z;
+            }
             method int getNext() { return next; }
 
-            method void print() {
-                var List current;
-                let current = this;
-                while (~(current = null)) {
-                    do Output.printInt(current.getData());
-                    do Output.printChar(32);
-                    let current = current.getNext();
-                }
-                return;
-            }
+            function int func() { return 3; }
+        ";
+        let mut parser = Parser::new(input);
+        let decs = parser.parse_subroutine_decs();
 
-            method void dispose() {
-                if (~(next = null)) {
-                    do next.dispose();
+        assert_eq!(decs.len(), 4);
+
+        assert_eq!(decs[0].kind, SubroutineKind::Constructor);
+        assert_eq!(decs[0].return_type, VariableType::Other(String::from("List")));
+        assert_eq!(decs[0].name, "new");
+        assert_eq!(decs[0].parameters.len(), 2);
+        assert_eq!(decs[0].body.locals.len(), 0);
+        assert_eq!(decs[0].body.statements.len(), 3);
+
+        assert_eq!(decs[1].kind, SubroutineKind::Method);
+        assert_eq!(decs[1].return_type, VariableType::Int);
+        assert_eq!(decs[1].name, "getData");
+        assert_eq!(decs[1].parameters.len(), 0);
+        assert_eq!(decs[1].body.locals.len(), 1);
+        assert_eq!(decs[1].body.locals[0].vars.len(), 3);
+        assert_eq!(decs[1].body.statements.len(), 0);
+
+        assert_eq!(decs[2].kind, SubroutineKind::Method);
+        assert_eq!(decs[2].return_type, VariableType::Int);
+        assert_eq!(decs[2].name, "getNext");
+        assert_eq!(decs[2].parameters.len(), 0);
+        assert_eq!(decs[2].body.locals.len(), 0);
+        assert_eq!(decs[2].body.statements.len(), 1);
+
+        assert_eq!(decs[3].kind, SubroutineKind::Function);
+        assert_eq!(decs[3].return_type, VariableType::Int);
+        assert_eq!(decs[3].name, "func");
+        assert_eq!(decs[3].parameters.len(), 0);
+        assert_eq!(decs[3].body.locals.len(), 0);
+        assert_eq!(decs[3].body.statements.len(), 1);
+    }
+
+    #[test]
+    fn test_class() {
+        let input = "
+            class List {
+                field int data;          // a list consists of a data field,
+                field List next;         // followed by a list
+
+                /* Creates a List. */
+                constructor List new(int car, List cdr) {
+                    let data = car;       // the identifiers car and cdr are used in
+                    let next = cdr;       // memory of the Lisp programming language
+                    return this;
                 }
-                do Memory.deAlloc(this);
-                return;
+
+                /** Accessors. */
+                method int getData() { return data; }
+                method int getNext() { return next; }
+
+                /** Prints this list. */
+                method void print() {
+                    var List current;    // initializes current to the first item
+                    let current = this;  // of this list
+                    while (~(current = null)) {
+                        do Output.printInt(current.getData());
+                        do Output.printChar(32); // prints a space
+                        let current = current.getNext();
+                    }
+                    return;
+                }
+
+                /** Disposes this List by recursively disposing its tail. */
+                method void dispose() {
+                    if (~(next = null)) {
+                        do next.dispose();
+                    }
+                    // Uses an OS routine to recycle this object.
+                    do Memory.deAlloc(this);
+                    return;
+                }
+
+                // More list processing methods can come here.
+
             }
-        }";
+        ";
         let mut parser = Parser::new(input);
         let class = parser.parse_class();
 
-        println!("{:?}", class);
+        assert_eq!(class.name, "List");
+        assert_eq!(class.variables.len(), 2);
+        assert_eq!(class.variables[0].scope, VariableScope::Field);
+        assert_eq!(class.variables[0].typ, VariableType::Int);
+        assert_eq!(class.variables[0].vars.len(), 1);
+        assert_eq!(class.variables[0].vars[0], "data");
+        assert_eq!(class.subroutines.len(), 5);
     }
 }

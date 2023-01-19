@@ -1,11 +1,11 @@
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum VariableScope {
     Static,
     Field,
     Local,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum VariableType {
     Int,
     Char,
@@ -14,33 +14,33 @@ pub enum VariableType {
     Other(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SubroutineKind {
     Constructor,
     Function,
     Method,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ClassVarDec {
     pub scope: VariableScope,
     pub typ: VariableType,
     pub vars: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct VarDec {
     pub typ: VariableType,
     pub vars: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SubroutineBody {
     pub locals: Vec<VarDec>,
     pub statements: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SubroutineDec {
     pub kind: SubroutineKind,
     pub return_type: VariableType,
@@ -49,14 +49,14 @@ pub struct SubroutineDec {
     pub body: SubroutineBody,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Class {
     pub name: String,
     pub variables: Vec<ClassVarDec>,
     pub subroutines: Vec<SubroutineDec>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Statement {
     Let{name: String, access: Option<Expr>, expr: Expr},
     If{condition: Expr, if_true: Vec<Statement>, if_false: Option<Vec<Statement>>},
@@ -65,19 +65,19 @@ pub enum Statement {
     Return{value: Option<Expr>},
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Expr {
     pub lhs: ExprTerm,
     pub rhs: Vec<(char, ExprTerm)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SubroutineCall {
     Function(String, Vec<Expr>),
     Method(String, String, Vec<Expr>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ExprTerm {
     Integer(u16),
     Str(String),
