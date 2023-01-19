@@ -397,6 +397,7 @@ impl Parser {
                     TokenType::Symbol('[') => {
                         self.advance();
                         let expr = self.parse_expression();
+                        self.consume_symbol(']');
                         ExprTerm::Access(var_name, Box::new(expr))
                     }
                     // function call
