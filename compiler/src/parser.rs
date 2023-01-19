@@ -302,39 +302,26 @@ impl Parser {
         }
 
         let expr = self.parse_expression();
-        let TokenType::Symbol(';') = self.lexer.get_current_token_type() else { panic!("Expected ';' after return statement. Encountered {:?}", self.lexer.get_current_token_type()) };
-        self.advance();
+        self.consume_symbol(';');
         Statement::Return { value: Some(expr) }
     }
 
     fn parse_let_statement(&mut self) -> Statement {
-        let tt = self.advance();
-        let TokenType::Identifier(v) = tt else {
-            panic!("Expected identifier while parsing let statement. Encountered {:?}", tt)
-        };
-        let name = v.clone();
+        let name = self.parse_identifier();
 
         let access = if let TokenType::Symbol('[') = self.lexer.get_current_token_type() {
             self.advance();
             let expr = self.parse_expression();
 
-            let tt = self.advance();
-            let TokenType::Symbol(']') = tt else {
-                panic!("Expected ']' after index expression. Encountered {:?}", tt);
-            };
+            self.consume_symbol(']');
             Some(expr)
         } else {
             None
         };
 
-        let tt = self.advance();
-        let TokenType::Symbol('=') = tt else {
-            panic!("Expected '=' after variable name. Encountered {:?}", tt)
-        };
-
+        self.consume_symbol('=');
         let expr = self.parse_expression();
-        let tt = self.advance();
-        let TokenType::Symbol(';') = tt else { panic!("Expected ';' after variable assignment. Encountered {:?}", tt) };
+        self.consume_symbol(';');
 
         Statement::Let { name, access, expr }
     }
@@ -355,15 +342,9 @@ impl Parser {
             }
             // method call
             TokenType::Symbol('.') => {
-                let TokenType::Identifier(ref m) = self.advance() else {
-                    panic!("Expected identifier after '.'. Encountered {:?}", self.lexer.get_current_token_type());
-                };
-                let method_name = m.clone();
+                let method_name = self.parse_identifier();
 
-                let TokenType::Symbol('(') = self.advance() else {
-                    panic!("Expected '(' after method name. Encountered {:?}", self.lexer.get_current_token_type());
-                };
-
+                self.consume_symbol('(');
                 let expr_list = self.parse_expression_list();
                 SubroutineCall::Method(name, method_name, expr_list)
             }
@@ -372,10 +353,7 @@ impl Parser {
                 self.lexer.get_current_token_type()
             ),
         };
-        let tt = self.advance();
-        let TokenType::Symbol(';') = tt else {
-            panic!("Expected ;' after do statement.");
-        };
+        self.consume_symbol(';');
 
         Statement::Do { call }
     }
@@ -449,10 +427,7 @@ impl Parser {
             }
             TokenType::Symbol('(') => {
                 let expr = self.parse_expression();
-                let tt = self.advance();
-                let TokenType::Symbol(')') = tt else {
-                    panic!("Expected ')' after parenthesized expression. Encountered {:?}", tt);
-                };
+                self.consume_symbol(')');
                 ExprTerm::Group(Box::new(expr))
             }
             TokenType::Symbol('-') => {
@@ -482,15 +457,8 @@ impl Parser {
             list.push(expr);
         }
 
-        if let TokenType::Symbol(')') = self.lexer.get_current_token_type() {
-            self.advance();
-            list
-        } else {
-            panic!(
-                "Expected ')' after expression list. Encounterd {:?}",
-                self.lexer.current_token.token_type
-            );
-        }
+        self.consume_symbol(')');
+        list
     }
 }
 
