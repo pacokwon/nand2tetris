@@ -87,7 +87,7 @@ impl CodeGen for SubroutineDec {
         match self.kind {
             Constructor => {
                 // allocate memory for object.
-                let size = std::cmp::min(1, class.fields_count);
+                let size = std::cmp::max(1, class.fields_count);
                 push(out, AsmSection::Constant, size);
                 writeln!(out, "call Memory.alloc 1").unwrap();
                 pop(out, AsmSection::Pointer, 0);
