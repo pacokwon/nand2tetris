@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use crate::xml_printer::{print_closing, print_opening, print_symbol, print_tag, XmlPrinter};
+use crate::{xml_printer::{print_closing, print_opening, print_symbol, print_tag, XmlPrinter}, codegen::{CodeGen, SymbolScope}};
 
 use super::variable_type::VariableType;
 
@@ -25,5 +25,30 @@ impl XmlPrinter for VarDec {
 
         print_symbol(file, ";");
         print_closing(file, "varDec");
+    }
+}
+
+impl CodeGen for VarDec {
+    fn write_code(&self, _out: &mut impl std::io::Write, _compiler: &mut crate::codegen::Compiler, symbol_table: &mut crate::codegen::SymbolTable) {
+        // local variable declaration.
+        // no vm instruction to emit.
+        // we update the symbol table here.
+
+        // we have default types char, int, boolean
+        // and we have reference types.
+        self.vars.iter().for_each(|v| {
+            symbol_table.add_variable(v, &self.typ, SymbolScope::Local);
+        });
+    }
+}
+
+impl CodeGen for Vec<VarDec> {
+    fn write_code(
+        &self,
+        out: &mut impl std::io::Write,
+        compiler: &mut crate::codegen::Compiler,
+        symbol_table: &mut crate::codegen::SymbolTable,
+    ) {
+        self.iter().for_each(|v| v.write_code(out, compiler, symbol_table));
     }
 }

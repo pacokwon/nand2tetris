@@ -2,7 +2,7 @@ use std::fs::File;
 
 use crate::xml_printer::{print_tag, XmlPrinter};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VariableType {
     Int,
     Char,

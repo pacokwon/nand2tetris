@@ -36,6 +36,8 @@ impl CodeGen for Class {
         compiler: &mut Compiler,
         symbol_table: &mut SymbolTable,
     ) {
-        todo!()
+        compiler.set_current_class(&self.name, self.variables.len() as u16);
+        self.variables.write_code(out, compiler, symbol_table);
+        self.subroutines.write_code(out, compiler, symbol_table);
     }
 }

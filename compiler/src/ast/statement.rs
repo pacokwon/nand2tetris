@@ -1,7 +1,7 @@
 use std::{fs::File, io::Write};
 
 use crate::{
-    codegen::{CodeGen, Compiler, SymbolTable},
+    codegen::{pop, push, AsmSection, CodeGen, Compiler, SymbolTable},
     xml_printer::{print_closing, print_opening, print_symbol, print_tag, XmlPrinter},
 };
 
@@ -127,19 +127,104 @@ impl CodeGen for Statement {
         use Statement::*;
 
         match self {
-            Let { name, access, expr } => todo!(),
+            Let { name, access, expr } => {
+                expr.write_code(out, compiler, symbol_table);
+
+                if let Some(access_expr) = access {
+                    access_expr.write_code(out, compiler, symbol_table);
+
+                    let entry = symbol_table
+                        .resolve_variable(name)
+                        .unwrap_or_else(|| panic!("Variable '{name}' not found in symbol table."));
+                    push(out, entry.scope.into(), entry.id);
+                    writeln!(out, "add").unwrap();
+                    pop(out, AsmSection::Pointer, 1);
+                    pop(out, AsmSection::That, 0);
+                } else {
+                    let entry = symbol_table
+                        .resolve_variable(name)
+                        .unwrap_or_else(|| panic!("Variable '{name}' not found in symbol table."));
+                    pop(out, entry.scope.into(), entry.id);
+                }
+            }
             If {
                 condition,
                 if_true,
                 if_false,
-            } => todo!(),
+            } => {
+                let label = compiler.get_new_branch_counter();
+                let false_branch_exists = if_false.is_some();
+
+                condition.write_code(out, compiler, symbol_table);
+                write!(
+                    out,
+                    "\
+                        if-goto IF_TRUE{label}\n\
+                        goto IF_FALSE{label}\n\
+                        label IF_TRUE{label}\n\
+                    "
+                )
+                .unwrap();
+                if_true.write_code(out, compiler, symbol_table);
+
+                if false_branch_exists {
+                    writeln!(out, "goto IF_END{label}").unwrap();
+                }
+
+                writeln!(out, "label IF_FALSE{label}").unwrap();
+
+                if false_branch_exists {
+                    if_false
+                        .as_ref()
+                        .unwrap()
+                        .write_code(out, compiler, symbol_table);
+                    writeln!(out, "label IF_END{label}").unwrap();
+                }
+            }
             While {
                 condition,
                 statements,
-            } => todo!(),
-            // TODO: pop temp 0
-            Do { call } => todo!(),
-            Return { value } => todo!(),
+            } => {
+                let label = compiler.get_new_branch_counter();
+                writeln!(out, "label WHILE_EXP{label}").unwrap();
+                condition.write_code(out, compiler, symbol_table);
+                // negate the condition
+                writeln!(out, "not").unwrap();
+
+                // if the negated condition is true, the while loop is over.
+                writeln!(out, "if-goto WHILE_END{label}").unwrap();
+
+                // otherwise, run the body.
+                statements.write_code(out, compiler, symbol_table);
+
+                writeln!(out, "goto WHILE_EXP{label}").unwrap();
+                writeln!(out, "label WHILE_END{label}").unwrap();
+            }
+            Do { call } => {
+                call.write_code(out, compiler, symbol_table);
+                // move the return value to a temporary variable
+                pop(out, AsmSection::Temp, 0);
+            }
+            Return { value } => {
+                if let Some(expr) = value {
+                    expr.write_code(out, compiler, symbol_table);
+                } else {
+                    push(out, AsmSection::Constant, 0);
+                }
+                writeln!(out, "return").unwrap();
+            }
         }
+    }
+}
+
+impl CodeGen for Vec<Statement> {
+    fn write_code(
+        &self,
+        out: &mut impl Write,
+        compiler: &mut Compiler,
+        symbol_table: &mut SymbolTable,
+    ) {
+        self.iter()
+            .for_each(|s| s.write_code(out, compiler, symbol_table));
     }
 }

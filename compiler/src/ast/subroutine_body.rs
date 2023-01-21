@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use crate::xml_printer::{print_closing, print_opening, print_symbol, XmlPrinter};
+use crate::{xml_printer::{print_closing, print_opening, print_symbol, XmlPrinter}, codegen::CodeGen};
 
 use super::{statement::Statement, var_dec::VarDec};
 
@@ -20,5 +20,17 @@ impl XmlPrinter for SubroutineBody {
 
         print_symbol(file, "}");
         print_closing(file, "subroutineBody");
+    }
+}
+
+impl CodeGen for SubroutineBody {
+    fn write_code(
+        &self,
+        out: &mut impl std::io::Write,
+        compiler: &mut crate::codegen::Compiler,
+        symbol_table: &mut crate::codegen::SymbolTable,
+    ) {
+        self.locals.write_code(out, compiler, symbol_table);
+        self.statements.write_code(out, compiler, symbol_table);
     }
 }
