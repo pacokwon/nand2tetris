@@ -5,7 +5,9 @@ use crate::{
     xml_printer::{print_closing, print_opening, print_symbol, print_tag, XmlPrinter},
 };
 
-use super::{class_var_dec::ClassVarDec, subroutine_dec::SubroutineDec};
+use super::{
+    class_var_dec::ClassVarDec, subroutine_dec::SubroutineDec, variable_scope::VariableScope,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Class {
@@ -36,7 +38,20 @@ impl CodeGen for Class {
         compiler: &mut Compiler,
         symbol_table: &mut SymbolTable,
     ) {
-        compiler.set_current_class(&self.name, self.variables.len() as u16);
+        let size = self
+            .variables
+            .iter()
+            // only count fields, not static variables
+            .filter(|cv| {
+                if let VariableScope::Field = cv.scope {
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(|cv| cv.vars.len())
+            .sum::<usize>() as u16;
+        compiler.set_current_class(&self.name, size);
         self.variables.write_code(out, compiler, symbol_table);
         self.subroutines.write_code(out, compiler, symbol_table);
     }
