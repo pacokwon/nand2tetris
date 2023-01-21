@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use crate::{
-    codegen::{pop, push, AsmSection, CodeGen},
+    codegen::{pop, push, AsmSection, CodeGen, SymbolScope},
     xml_printer::{print_closing, print_opening, print_symbol, print_tag, XmlPrinter},
 };
 
@@ -69,24 +69,29 @@ impl CodeGen for SubroutineDec {
             "function {}.{} {}",
             class.name,
             self.name,
-            self.parameters.len()
+            self.body.locals.len()
         )
         .unwrap();
 
+        self.parameters.iter().for_each(|(typ, param)| {
+            symbol_table.add_variable(param, typ, SymbolScope::Argument);
+        });
+
         match self.kind {
             Constructor => {
+                compiler.is_inside_method = true;
+
                 // allocate memory for object.
                 let size = std::cmp::min(1, class.fields_count);
                 push(out, AsmSection::Constant, size);
                 writeln!(out, "call Memory.alloc 1").unwrap();
                 pop(out, AsmSection::Pointer, 0);
             }
-            Function =>
-            /* do nothing */
-            {
-                ()
+            Function => {
+                compiler.is_inside_method = false
             }
             Method => {
+                compiler.is_inside_method = true;
                 // set `this` to the provided `this`
                 push(out, AsmSection::Argument, 0);
                 pop(out, AsmSection::Pointer, 0);
@@ -104,6 +109,7 @@ impl CodeGen for Vec<SubroutineDec> {
         compiler: &mut crate::codegen::Compiler,
         symbol_table: &mut crate::codegen::SymbolTable,
     ) {
-        self.iter().for_each(|sd| sd.write_code(out, compiler, symbol_table));
+        self.iter()
+            .for_each(|sd| sd.write_code(out, compiler, symbol_table));
     }
 }
