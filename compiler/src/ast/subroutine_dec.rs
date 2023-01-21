@@ -63,35 +63,41 @@ impl CodeGen for SubroutineDec {
             panic!("Subroutine must be declared inside a class.");
         };
 
-        symbol_table.reset_local_table();
+        symbol_table.reset_local_table(self.kind);
+
+        let locals_count = self
+            .body
+            .locals
+            .iter()
+            .map(|vd| vd.vars.len())
+            .sum::<usize>();
+
         writeln!(
             out,
             "function {}.{} {}",
-            class.name,
-            self.name,
-            self.body.locals.len()
+            class.name, self.name, locals_count
         )
         .unwrap();
 
+        compiler.current_subroutine_kind = Some(self.kind);
         self.parameters.iter().for_each(|(typ, param)| {
             symbol_table.add_variable(param, typ, SymbolScope::Argument);
         });
 
         match self.kind {
             Constructor => {
-                compiler.is_inside_method = true;
-
                 // allocate memory for object.
                 let size = std::cmp::min(1, class.fields_count);
                 push(out, AsmSection::Constant, size);
                 writeln!(out, "call Memory.alloc 1").unwrap();
                 pop(out, AsmSection::Pointer, 0);
             }
-            Function => {
-                compiler.is_inside_method = false
+            Function =>
+            /* Do nothing */
+            {
+                ()
             }
             Method => {
-                compiler.is_inside_method = true;
                 // set `this` to the provided `this`
                 push(out, AsmSection::Argument, 0);
                 pop(out, AsmSection::Pointer, 0);

@@ -2,7 +2,7 @@ use std::{fs::File, io::Write};
 
 use crate::{
     codegen::{push, push_this, CodeGen, Compiler, SymbolTable},
-    xml_printer::{print_symbol, print_tag, XmlPrinter}, ast::variable_type::VariableType,
+    xml_printer::{print_symbol, print_tag, XmlPrinter}, ast::{variable_type::VariableType, subroutine_kind::SubroutineKind},
 };
 
 use super::expr::Expr;
@@ -46,7 +46,7 @@ impl CodeGen for SubroutineCall {
         match self {
             Function(func_name, args) => {
                 // if there is no module, then this is a method call.
-                if !compiler.is_inside_method {
+                if let None | Some(SubroutineKind::Function) = compiler.current_subroutine_kind {
                     panic!("Methods can only be called inside methods or constructors.");
                 }
 
@@ -65,19 +65,11 @@ impl CodeGen for SubroutineCall {
                 writeln!(out, "call {} {}", full_name, args.len() + 1).unwrap();
             }
             Method(namespace, method, args) => {
-                let Some(ref class) = compiler.current_class else {
+                let Some(_) = compiler.current_class else {
                     panic!("Method/Function call is supposed to be inside a class.");
                 };
                 // check if module is class / variable
-                if &class.name == namespace {
-                    // module is class => this is a function call.
-
-                    // push arguments to stack
-                    args.write_code(out, compiler, symbol_table);
-
-                    // call function
-                    writeln!(out, "call {namespace}.{method} {}", args.len()).unwrap();
-                } else if let Some(entry) = symbol_table.resolve_variable(namespace) {
+                if let Some(entry) = symbol_table.resolve_variable(namespace) {
                     // module is variable => this is a method call
                     let VariableType::Other(ref type_name) = entry.typ else {
                         panic!("Cannot call method {method} on a non-reference type {:?}", entry.typ);
@@ -100,7 +92,13 @@ impl CodeGen for SubroutineCall {
                     // we use the pre-made call instruction here.
                     writeln!(out, "{}", call_inst).unwrap();
                 } else {
-                    panic!("{namespace} must be a class name or a variable.");
+                    // module is class => this is a function call.
+
+                    // push arguments to stack
+                    args.write_code(out, compiler, symbol_table);
+
+                    // call function
+                    writeln!(out, "call {namespace}.{method} {}", args.len()).unwrap();
                 }
             }
         }

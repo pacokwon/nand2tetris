@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::Write};
 
-use crate::ast::{class::Class, variable_type::VariableType};
+use crate::ast::{class::Class, variable_type::VariableType, subroutine_kind::SubroutineKind};
 
 #[derive(Debug)]
 pub struct ClassInfo {
@@ -10,19 +10,19 @@ pub struct ClassInfo {
 
 #[derive(Debug)]
 pub struct Compiler {
-    pub is_inside_method: bool,
+    pub current_subroutine_kind: Option<SubroutineKind>,
     pub current_class: Option<ClassInfo>,
     branch_counter: u16,
 }
 
 impl Compiler {
     pub fn new() -> Self {
-        let is_inside_method = false;
+        let current_subroutine_kind = None;
         let current_class = None;
         let branch_counter = 0;
 
         Compiler {
-            is_inside_method,
+            current_subroutine_kind,
             current_class,
             branch_counter,
         }
@@ -75,22 +75,28 @@ pub struct SymbolEntry {
 pub struct SymbolTable {
     pub class_symbols: HashMap<String, SymbolEntry>,
     pub local_symbols: HashMap<String, SymbolEntry>,
-    class_counter: u16,
-    local_counter: u16,
+    static_counter: i32,
+    field_counter: i32,
+    local_counter: i32,
+    args_counter: i32,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         let class_symbols = HashMap::new();
         let local_symbols = HashMap::new();
-        let class_counter = 0;
-        let local_counter = 0;
+        let static_counter = -1;
+        let field_counter = -1;
+        let local_counter = -1;
+        let args_counter = -1;
 
         SymbolTable {
             class_symbols,
             local_symbols,
-            class_counter,
+            static_counter,
+            field_counter,
             local_counter,
+            args_counter,
         }
     }
 
@@ -106,12 +112,27 @@ impl SymbolTable {
 
     pub fn add_variable(&mut self, name: &str, typ: &VariableType, scope: SymbolScope) {
         let typ = typ.clone();
+        let id = match scope {
+            SymbolScope::Static => {
+                self.static_counter += 1;
+                self.static_counter
+            },
+            SymbolScope::Field => {
+                self.field_counter += 1;
+                self.field_counter
+            },
+            SymbolScope::Local => {
+                self.local_counter += 1;
+                self.local_counter
+            },
+            SymbolScope::Argument => {
+                self.args_counter += 1;
+                self.args_counter
+            },
+        } as u16;
 
         match scope {
             SymbolScope::Static | SymbolScope::Field => {
-                self.class_counter += 1;
-                let id = self.class_counter;
-
                 if self.class_symbols.contains_key(name) {
                     panic!("Duplicate variable '{name}' in class scope.");
                 }
@@ -120,9 +141,6 @@ impl SymbolTable {
                     .insert(name.to_string(), SymbolEntry { id, typ, scope });
             }
             SymbolScope::Local | SymbolScope::Argument => {
-                self.local_counter += 1;
-                let id = self.local_counter;
-
                 if self.local_symbols.contains_key(name) {
                     panic!("Duplicate variable '{name}' in local scope.");
                 }
@@ -133,8 +151,18 @@ impl SymbolTable {
         }
     }
 
-    pub fn reset_local_table(&mut self) {
-        self.local_counter = 0;
+    pub fn reset_local_table(&mut self, subroutine_kind: SubroutineKind) {
+        use SubroutineKind::*;
+
+        match subroutine_kind {
+            Constructor | Function => {
+                self.args_counter = -1;
+            },
+            Method => {
+                self.args_counter = 0;
+            },
+        }
+        self.local_counter = -1;
         self.local_symbols = HashMap::new();
     }
 }

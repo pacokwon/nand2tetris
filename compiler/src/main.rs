@@ -60,26 +60,41 @@ pub fn compile() {
         panic!("Please supply file name");
     }
 
-    if !args[1].ends_with(".jack") {
-        panic!("Please supply a .jack file");
+    let filenames: Vec<String> = if args[1].ends_with(".jack") {
+        vec![args[1].to_string()]
+    } else {
+        fs::read_dir(&args[1])
+            .expect(&format!("{} is not a directory", args[1]))
+            .map(|entry| {
+                entry
+                    .unwrap()
+                    .path()
+                    .into_os_string()
+                    .into_string()
+                    .unwrap()
+            })
+            .filter(|path| path.ends_with(".jack"))
+            .collect::<Vec<String>>()
+    };
+
+    for filepath in &filenames {
+        let filename_no_ext = Path::new(filepath)
+            .file_stem()
+            .unwrap()
+            .to_os_string()
+            .into_string()
+            .unwrap();
+        let compilation_output = format!("{}.vm", filename_no_ext);
+        let mut output_file = File::create(compilation_output).unwrap();
+
+        let input = fs::read_to_string(filepath)
+            .expect("Expected path to valid jack file. Make sure the file exists.");
+
+        let mut parser = Parser::new(&input);
+        let ast = parser.parse();
+        let mut compiler = Compiler::new();
+        compiler.compile(&ast, &mut output_file);
     }
-
-    let filename_no_ext = Path::new(&args[1])
-        .file_stem()
-        .unwrap()
-        .to_os_string()
-        .into_string()
-        .unwrap();
-    let compilation_output = format!("{}.vm", filename_no_ext);
-    let mut output_file = File::create(compilation_output).unwrap();
-
-    let input = fs::read_to_string(&args[1])
-        .expect("Expected path to valid jack file. Make sure the file exists.");
-
-    let mut parser = Parser::new(&input);
-    let ast = parser.parse();
-    let mut compiler = Compiler::new();
-    compiler.compile(&ast, &mut output_file);
 }
 
 fn main() {
