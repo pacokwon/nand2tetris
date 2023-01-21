@@ -24,7 +24,7 @@ fn emit_ast(filename: &str, input: &str) {
     parse_tree.print_xml(&mut file);
 }
 
-fn main() {
+fn emit_syntax_analysis() {
     let args = std::env::args().collect::<Vec<String>>();
 
     if args.len() < 2 {
@@ -49,4 +49,7 @@ fn main() {
 
     emit_tokens(&tokens_output, &input);
     emit_ast(&ast_output, &input);
+}
+
+fn main() {
 }

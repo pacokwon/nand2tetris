@@ -1,7 +1,15 @@
-use crate::ast::{
-    Class, ClassVarDec, Expr, ExprTerm, Statement, SubroutineBody, SubroutineCall, SubroutineDec,
-    SubroutineKind, VarDec, VariableScope, VariableType,
-};
+use crate::ast::class::Class;
+use crate::ast::class_var_dec::ClassVarDec;
+use crate::ast::expr::Expr;
+use crate::ast::expr_term::ExprTerm;
+use crate::ast::statement::Statement;
+use crate::ast::subroutine_body::SubroutineBody;
+use crate::ast::subroutine_call::SubroutineCall;
+use crate::ast::subroutine_dec::SubroutineDec;
+use crate::ast::subroutine_kind::SubroutineKind;
+use crate::ast::var_dec::VarDec;
+use crate::ast::variable_scope::VariableScope;
+use crate::ast::variable_type::VariableType;
 use crate::lexer::Lexer;
 use crate::token::{KeywordType, TokenType};
 
@@ -466,17 +474,17 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use crate::ast;
-    use crate::ast::ExprTerm;
-    use crate::ast::Statement;
-    use crate::ast::SubroutineCall;
-    use crate::ast::SubroutineKind;
-    use crate::ast::VariableScope;
-    use crate::ast::VariableType;
+    use crate::ast::expr_term::ExprTerm;
+    use crate::ast::statement::Statement;
+    use crate::ast::subroutine_call::SubroutineCall;
+    use crate::ast::subroutine_kind::SubroutineKind;
+    use crate::ast::variable_scope::VariableScope;
+    use crate::ast::variable_type::VariableType;
     use crate::parser::Parser;
 
     #[test]
     fn test_term_int() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "30";
         let mut parser = Parser::new(input);
         let term = parser.parse_term();
@@ -489,7 +497,7 @@ mod tests {
 
     #[test]
     fn test_term_str() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "\"foobar\"";
         let mut parser = Parser::new(input);
         let term = parser.parse_term();
@@ -502,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_term_keyword() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "true";
         let mut parser = Parser::new(input);
         let term = parser.parse_term();
@@ -513,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_term_variable() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
 
         let input = "foo";
         let mut parser = Parser::new(input);
@@ -525,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_term_access() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
 
         let input = "foo[3]";
         let mut parser = Parser::new(input);
@@ -538,7 +546,7 @@ mod tests {
 
     #[test]
     fn test_term_unary() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
 
         let input = "-spam";
         let mut parser = Parser::new(input);
@@ -551,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_term_function_empty() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
 
         let input = "foo()";
         let mut parser = Parser::new(input);
@@ -565,7 +573,7 @@ mod tests {
 
     #[test]
     fn test_term_function_call() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
 
         let input = "foo(3)";
         let mut parser = Parser::new(input);
@@ -578,7 +586,7 @@ mod tests {
 
     #[test]
     fn test_term_method_call() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
 
         let input = "foo.bar(3)";
         let mut parser = Parser::new(input);
@@ -592,7 +600,7 @@ mod tests {
 
     #[test]
     fn test_expression_int() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "3";
         let mut parser = Parser::new(input);
         let term = parser.parse_expression();
@@ -604,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_expression_binary1() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "3 + 4";
         let mut parser = Parser::new(input);
         let term = parser.parse_expression();
@@ -621,7 +629,7 @@ mod tests {
 
     #[test]
     fn test_expression_binary2() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "foobar / 4";
         let mut parser = Parser::new(input);
         let term = parser.parse_expression();
@@ -638,7 +646,7 @@ mod tests {
 
     #[test]
     fn test_expression_group() {
-        use ast::ExprTerm::*;
+        use ast::expr_term::ExprTerm::*;
         let input = "3 * (4 + 5)";
         let mut parser = Parser::new(input);
         let term = parser.parse_expression();
