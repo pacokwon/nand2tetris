@@ -50,11 +50,6 @@ impl Lexer {
         &self.next_token.token_type
     }
 
-    pub fn next_token(&self) {
-
-        todo!()
-    }
-
     fn peek(&self) -> char {
         if self.position < self.source.len() {
             self.source[self.position]

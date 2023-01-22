@@ -68,7 +68,7 @@ impl Parser {
             "pop" | "push" | "function" | "call" => line[2]
                 .parse()
                 .expect("Expected integer for second argument."),
-            _ => todo!(),
+            s => panic!("Invalid instruction {s}"),
         }
     }
 
