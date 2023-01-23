@@ -18,8 +18,5 @@ fn main() -> std::io::Result<()> {
     let minsts = Pass::translate(&instructions);
     println!("{}", minsts.join("\n"));
 
-    // let minsts = Pass::line_resolution(&instructions);
-    // println!("{:?}", minsts);
-
     Ok(())
 }
